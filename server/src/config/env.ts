@@ -1,0 +1,30 @@
+const requiredServerEnvKeys = [
+  "FIREBASE_PROJECT_ID",
+  "FIREBASE_CLIENT_EMAIL",
+  "FIREBASE_PRIVATE_KEY",
+  "FIREBASE_DATABASE_URL",
+  "GOOGLE_PLACES_API_KEY",
+  "GEMINI_API_KEY"
+] as const;
+
+type RequiredServerEnvKey = (typeof requiredServerEnvKeys)[number];
+
+const readEnv = (key: RequiredServerEnvKey): string => {
+  const value = process.env[key];
+
+  if (!value) {
+    throw new Error(`Missing required server env var: ${key}`);
+  }
+
+  return value;
+};
+
+export const serverEnv = {
+  port: Number(process.env.PORT ?? 8080),
+  firebaseProjectId: readEnv("FIREBASE_PROJECT_ID"),
+  firebaseClientEmail: readEnv("FIREBASE_CLIENT_EMAIL"),
+  firebasePrivateKey: readEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n"),
+  firebaseDatabaseUrl: readEnv("FIREBASE_DATABASE_URL"),
+  googlePlacesApiKey: readEnv("GOOGLE_PLACES_API_KEY"),
+  geminiApiKey: readEnv("GEMINI_API_KEY")
+};

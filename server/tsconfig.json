@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@munchscene/shared": [
+        "../shared/src/index.ts"
+      ]
+    },
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

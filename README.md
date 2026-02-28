@@ -77,35 +77,46 @@ APIs:
 
 ```bash
 git clone https://github.com/your-org/munchscene.git
-cd munch-scene
+cd stormhacks
 ```
 
 ### 2. Install dependencies
 
+```bash
+npm install
+```
+
+### 3. Start each app
+
 Frontend:
 ```bash
-cd client
-npm install
-npm run dev
+npm run dev:client
 ```
 
 Backend:
 ```bash
-cd server
-npm install
-node index.js
+npm run dev:server
 ```
 
 ---
 
 ## 🔐 Environment Variables
 
-Create `.env` in server:
+Create a root `.env` from [`.env.example`](/Users/abhi/stormhacks/.env.example):
 
 ```
 GOOGLE_PLACES_API_KEY=your_key_here
 GEMINI_API_KEY=your_key_here
-FIREBASE_CONFIG=your_config_here
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_service_account_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+VITE_FIREBASE_API_KEY=your_client_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
 ---
