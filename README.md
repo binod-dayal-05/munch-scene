@@ -1,8 +1,8 @@
-# 🍽 Munch Scene
+# 🍽 Munchscene
 
 AI-powered fairness engine for group restaurant decisions.
 
-Instead of majority voting, Munch Scene selects restaurants that maximize balanced group satisfaction — ensuring no one gets screwed over.
+Instead of majority voting, Munchscene selects restaurants that maximize balanced group satisfaction — ensuring no one gets screwed over.
 
 Built for a 24-hour hackathon.
 
@@ -29,7 +29,7 @@ Built for a 24-hour hackathon.
    - Cuisine
    - Vibe
    - Distance radius
-3. Munch Scene:
+3. Munchscene:
    - Fetches restaurants from Google Places
    - Filters by hard constraints
    - Calculates per-user satisfaction
@@ -119,14 +119,14 @@ Scenario:
 - User who wants hype vibe
 - User who prefers Italian
 
-Munch Scene:
+Munchscene:
 - Eliminates restaurants violating constraints
 - Ranks remaining options
 - Explains compromise conversationally
 
 Close with:
 
-"Munch Scene doesn't choose what most people want. It chooses what's fairest."
+"Munchscene doesn't choose what most people want. It chooses what's fairest."
 
 ---
 
