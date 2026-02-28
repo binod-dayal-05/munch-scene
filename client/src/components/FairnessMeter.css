@@ -1,0 +1,53 @@
+.fairness-meter {
+  --meter-height: 10px;
+  --meter-radius: 999px;
+}
+
+.fairness-meter__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.fairness-meter__label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.fairness-meter__value {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fairness-meter--high .fairness-meter__value { color: var(--success); }
+.fairness-meter--mid .fairness-meter__value { color: var(--warning); }
+.fairness-meter--low .fairness-meter__value { color: var(--accent); }
+
+.fairness-meter__track {
+  height: var(--meter-height);
+  background: var(--surface-2);
+  border-radius: var(--meter-radius);
+  overflow: hidden;
+}
+
+.fairness-meter__fill {
+  height: 100%;
+  border-radius: var(--meter-radius);
+  transition: width 0.4s ease-out;
+}
+
+.fairness-meter--high .fairness-meter__fill {
+  background: linear-gradient(90deg, var(--success) 0%, #34d399 100%);
+}
+
+.fairness-meter--mid .fairness-meter__fill {
+  background: linear-gradient(90deg, var(--warning) 0%, #fbbf24 100%);
+}
+
+.fairness-meter--low .fairness-meter__fill {
+  background: linear-gradient(90deg, var(--accent) 0%, #ff8a6b 100%);
+}

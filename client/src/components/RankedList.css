@@ -1,0 +1,16 @@
+.ranked-list {
+  margin-bottom: 1.5rem;
+}
+
+.ranked-list__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.ranked-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

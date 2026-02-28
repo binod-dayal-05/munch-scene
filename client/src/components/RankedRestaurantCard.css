@@ -1,0 +1,42 @@
+.ranked-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.ranked-card__rank {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 2rem;
+}
+
+.ranked-card__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ranked-card__name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  color: var(--text);
+}
+
+.ranked-card__meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.ranked-card .fairness-meter {
+  margin-bottom: 0;
+}

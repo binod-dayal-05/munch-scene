@@ -1,0 +1,75 @@
+.result-hero {
+  background: linear-gradient(145deg, var(--surface) 0%, var(--surface-2) 100%);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+}
+
+.result-hero__badge {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.result-hero__name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.result-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.result-hero__price {
+  color: var(--success);
+}
+
+.result-hero__rating {
+  color: var(--warning);
+}
+
+.result-hero__reviews {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.result-hero__address {
+  flex-basis: 100%;
+  font-size: 0.9rem;
+}
+
+.result-hero__open {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.result-hero__open--yes {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.result-hero__open--no {
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
