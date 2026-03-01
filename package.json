@@ -14,4 +14,3 @@
     "typecheck": "npm run typecheck --workspaces"
   }
 }
-
