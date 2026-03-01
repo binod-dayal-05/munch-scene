@@ -22,6 +22,7 @@ const readEnv = (key: RequiredEnvKey): string => {
 
 export const clientEnv = {
   appName: import.meta.env.VITE_APP_NAME ?? "Munchscene",
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080",
   firebase: {
     apiKey: readEnv("VITE_FIREBASE_API_KEY"),
     authDomain: readEnv("VITE_FIREBASE_AUTH_DOMAIN"),
@@ -32,4 +33,3 @@ export const clientEnv = {
     appId: readEnv("VITE_FIREBASE_APP_ID")
   }
 };
-
