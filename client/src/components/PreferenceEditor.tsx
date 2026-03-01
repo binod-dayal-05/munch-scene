@@ -4,7 +4,7 @@ import {
   VIBE_OPTIONS,
   type DietaryRestriction,
   type UserPreferences,
-  type VibePreference
+  type VibePreference,
 } from "@munchscene/shared";
 
 type PreferenceEditorProps = {
@@ -20,13 +20,13 @@ const priceLabels: Record<UserPreferences["budgetMax"], string> = {
   1: "$",
   2: "$$",
   3: "$$$",
-  4: "$$$$"
+  4: "$$$$",
 };
 
 export function PreferenceEditor({
   disabled,
   preferences,
-  onChange
+  onChange,
 }: PreferenceEditorProps) {
   const isEditingCuisine = useRef(false);
   const [cuisineInput, setCuisineInput] = useState(
@@ -37,7 +37,6 @@ export function PreferenceEditor({
     if (isEditingCuisine.current) {
       return;
     }
-
     setCuisineInput(preferences.cuisinePreferences.join(", "));
   }, [preferences.cuisinePreferences]);
 
@@ -52,16 +51,19 @@ export function PreferenceEditor({
 
     onChange({
       ...preferences,
-      dietaryRestrictions: Array.from(nextSet)
+      dietaryRestrictions: Array.from(nextSet),
     });
   };
 
   return (
-    <div className="preference-editor">
-      <div className="field-grid">
-        <label className="field">
-          <span>Name your cuisines</span>
+    <div>
+      <div className="pref-grid">
+        <div className="ms-field">
+          <label className="ms-field__label" htmlFor="pref-cuisine">
+            Cuisines
+          </label>
           <input
+            id="pref-cuisine"
             disabled={disabled}
             type="text"
             value={cuisineInput}
@@ -81,21 +83,24 @@ export function PreferenceEditor({
                 cuisinePreferences: nextValue
                   .split(/[,\n]/)
                   .map((value) => value.trim())
-                  .filter(Boolean)
+                  .filter(Boolean),
               });
             }}
           />
-        </label>
+        </div>
 
-        <label className="field">
-          <span>Vibe</span>
+        <div className="ms-field">
+          <label className="ms-field__label" htmlFor="pref-vibe">
+            Vibe
+          </label>
           <select
+            id="pref-vibe"
             disabled={disabled}
             value={preferences.vibePreference}
             onChange={(event) =>
               onChange({
                 ...preferences,
-                vibePreference: event.target.value as VibePreference
+                vibePreference: event.target.value as VibePreference,
               })
             }
           >
@@ -105,17 +110,22 @@ export function PreferenceEditor({
               </option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <label className="field">
-          <span>Budget ceiling</span>
+        <div className="ms-field">
+          <label className="ms-field__label" htmlFor="pref-budget">
+            Budget ceiling
+          </label>
           <select
+            id="pref-budget"
             disabled={disabled}
             value={preferences.budgetMax}
             onChange={(event) =>
               onChange({
                 ...preferences,
-                budgetMax: Number(event.target.value) as UserPreferences["budgetMax"]
+                budgetMax: Number(
+                  event.target.value
+                ) as UserPreferences["budgetMax"],
               })
             }
           >
@@ -125,11 +135,14 @@ export function PreferenceEditor({
               </option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <label className="field">
-          <span>Max distance (meters)</span>
+        <div className="ms-field">
+          <label className="ms-field__label" htmlFor="pref-distance">
+            Max distance (m)
+          </label>
           <input
+            id="pref-distance"
             disabled={disabled}
             type="number"
             min={250}
@@ -138,16 +151,19 @@ export function PreferenceEditor({
             onChange={(event) =>
               onChange({
                 ...preferences,
-                maxDistanceMeters: Math.max(250, Number(event.target.value) || 250)
+                maxDistanceMeters: Math.max(
+                  250,
+                  Number(event.target.value) || 250
+                ),
               })
             }
           />
-        </label>
+        </div>
       </div>
 
-      <div className="field">
-        <span>Dietary restrictions</span>
-        <div className="pill-row">
+      <div>
+        <span className="pref-section-label">Dietary restrictions</span>
+        <div className="pref-pills">
           {DIETARY_RESTRICTION_OPTIONS.map((restriction) => {
             const active = preferences.dietaryRestrictions.includes(restriction);
 
@@ -156,7 +172,7 @@ export function PreferenceEditor({
                 key={restriction}
                 type="button"
                 disabled={disabled}
-                className={`pill ${active ? "pill-active" : ""}`}
+                className={`pref-pill${active ? " pref-pill--on" : ""}`}
                 onClick={() => updateDietary(restriction)}
               >
                 {restriction.replace("_", " ")}

@@ -1,7 +1,7 @@
 export const APP_NAME = "Munchscene";
 export const MAX_ROOM_SIZE = 10;
 export const DEFAULT_SEARCH_RADIUS_METERS = 4000;
-export const DEFAULT_GOOGLE_PLACES_LIMIT = 24;
+export const DEFAULT_GOOGLE_PLACES_LIMIT = 20;
 
 export const FAIRNESS_WEIGHTS = {
   cuisine: 0.4,
