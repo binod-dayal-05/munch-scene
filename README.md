@@ -1,161 +1,156 @@
-# 🍽 Munchscene
+# Munchscene
 
-AI-powered fairness engine for group restaurant decisions.
+Munchscene is a fairness-first group dining app.
 
-Instead of majority voting, Munchscene selects restaurants that maximize balanced group satisfaction — ensuring no one gets screwed over.
+Instead of pure majority voting, it scores restaurant options across all members,
+applies fairness penalties, and returns a ranked shortlist with AI explanations.
 
-Built for a 24-hour hackathon.
+## What It Does
 
----
+- Create a room and share a 6-character code
+- Join a room with live multiplayer updates
+- Edit preferences in real time
+- Run a fairness-based resolver
+- See ranked restaurant results
+- Review elimination reasons from hard constraints
+- Read AI-generated explanations for top picks
 
-## 🚀 Features
+## Stack
 
-- Real-time group rooms (up to 10 users)
-- Strict dietary filtering
-- Budget & distance constraints
-- Fairness-based scoring algorithm
-- Ranked restaurant recommendations
-- Conversational AI explanation (Gemini Flash via OpenRouter)
-- Clean + playful UI
+- Frontend: React + Vite + TypeScript
+- Backend: Node.js + Express + TypeScript
+- Realtime data: Firebase Realtime Database
+- Places data: Google Places API
+- AI explanations: OpenRouter (Gemini model)
+- Monorepo workspaces: `client`, `server`, `shared`
 
----
+## Repo Structure
 
-## 🧠 How It Works
-
-1. Users join a room.
-2. Each enters preferences:
-   - Budget
-   - Dietary restrictions
-   - Cuisine
-   - Vibe
-   - Distance radius
-3. Munchscene:
-   - Fetches restaurants from Google Places
-   - Filters by hard constraints
-   - Calculates per-user satisfaction
-   - Applies fairness penalty (variance-based)
-   - Ranks restaurants
-4. Gemini Flash generates a friendly explanation.
-5. Top result is highlighted.
-
----
-
-## ⚖ Fairness Model
-
-For each restaurant:
-
-FinalScore = Mean(UserScores)  
-             - λ × Variance(UserScores)  
-             - μ × LowFloorPenalty  
-
-This ensures:
-- Balanced satisfaction
-- No single user disproportionately unhappy
-
----
-
-## 🛠 Tech Stack
-
-Frontend:
-- React (Vite)
-
-Realtime:
-- Firebase Realtime Database
-
-Backend:
-- Node.js + Express
-
-APIs:
-- Google Places API
-- OpenRouter with Gemini Flash (AI explanation)
-
----
-
-## 📦 Installation
-
-### 1. Clone repo
-
-```bash
-git clone https://github.com/your-org/munchscene.git
-cd stormhacks
+```text
+client/   React app (Vite)
+server/   Express API
+shared/   Shared types + scoring contracts
 ```
 
-### 2. Install dependencies
+## Local Development
+
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Start each app
+### 2. Configure environment
 
-Frontend:
+Create `.env` in the repo root from `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Fill in all required values.
+
+### 3. Run frontend
+
 ```bash
 npm run dev:client
 ```
 
-Backend:
+### 4. Run backend
+
 ```bash
 npm run dev:server
 ```
 
----
+Frontend defaults to `http://localhost:5173`.
+Backend defaults to `http://localhost:8080`.
 
-## 🔐 Environment Variables
+## Scripts
 
-Create a root `.env` from [`.env.example`](/Users/abhi/stormhacks/.env.example):
+From repo root:
 
+- `npm run dev:client` - run Vite frontend
+- `npm run dev:server` - run Express server with `tsx watch`
+- `npm run build` - build all workspaces
+- `npm run typecheck` - typecheck all workspaces
+
+## Environment Variables
+
+Use the exact keys from `.env.example`.
+
+### Client (`VITE_*`)
+
+- `VITE_APP_NAME`
+- `VITE_API_BASE_URL`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_DATABASE_URL`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+
+### Server
+
+- `PORT` (optional, defaults to `8080`)
+- `CLIENT_ORIGIN` (optional, defaults to `http://localhost:5173`)
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (keep newline escapes: `\n`)
+- `FIREBASE_DATABASE_URL`
+- `GOOGLE_PLACES_API_KEY`
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL` (optional, defaults to `google/gemini-2.5-flash`)
+
+## Deployment
+
+Any static frontend host + Node backend host works.
+
+Minimal production requirements:
+
+- Deploy `client` and set `VITE_API_BASE_URL` to your backend URL.
+- Deploy `server` and set `CLIENT_ORIGIN` to your frontend URL.
+- Configure all required env vars from `.env.example` on each platform.
+
+## Firebase Rules Note
+
+The client currently writes room state directly to Realtime Database.
+If your RTDB rules are locked down, room creation/join may fail with
+`permission-denied`.
+
+For demo environments, ensure rules allow app writes to:
+
+- `rooms/*`
+- `roomsByCode/*`
+- `results/*`
+
+## API Endpoint
+
+Server exposes:
+
+- `GET /health`
+- `POST /rooms/:roomId/resolve`
+
+## Troubleshooting
+
+### `Cannot find package 'cors'`
+
+Run:
+
+```bash
+npm install
 ```
-GOOGLE_PLACES_API_KEY=your_key_here
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=google/gemini-2.5-flash
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=your_service_account_email
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
-VITE_FIREBASE_API_KEY=your_client_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-```
 
----
+### Firebase `permission-denied` when creating a room
 
-## 🎯 Demo Script
+Check Realtime Database rules and ensure write access for your current setup.
 
-Scenario:
+### CORS errors in browser
 
-- Vegetarian user
-- Budget-constrained user
-- User who wants hype vibe
-- User who prefers Italian
+Set `CLIENT_ORIGIN` on the server to your frontend domain.
 
-Munchscene:
-- Eliminates restaurants violating constraints
-- Ranks remaining options
-- Explains compromise conversationally
+## Team
 
-Close with:
-
-"Munchscene doesn't choose what most people want. It chooses what's fairest."
-
----
-
-## 🛣 Post-Hackathon Roadmap
-
-- Persistent profiles
-- Preference learning
-- Review mining
-- Compromise history tracking
-- Restaurant partnerships
-
----
-
-## 👥 Team
-
-Built by:
 - Abhinav Badesha
 - Binod Dayal
 - Dilshan Dadrao
