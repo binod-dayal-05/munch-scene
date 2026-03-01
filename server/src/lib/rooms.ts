@@ -13,6 +13,7 @@ const normalizeMember = (member: RoomMember): RoomMember => ({
 
 export const normalizeRoom = (room: MunchsceneRoom): MunchsceneRoom => ({
   ...room,
+  roomName: room.roomName?.trim() || room.location.label || `Room ${room.code}`,
   members: Object.fromEntries(
     Object.entries(room.members ?? {}).map(([memberId, member]) => [
       memberId,

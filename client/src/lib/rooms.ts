@@ -21,6 +21,7 @@ import { realtimeDb } from "./firebase";
 type CreateRoomInput = {
   hostName: string;
   memberId: string;
+  roomName: string;
   locationLabel: string;
   latitude?: number;
   longitude?: number;
@@ -66,6 +67,7 @@ const normalizeMember = (member: RoomMember): RoomMember => ({
 
 const normalizeRoom = (room: MunchsceneRoom): MunchsceneRoom => ({
   ...room,
+  roomName: room.roomName?.trim() || room.location.label || `Room ${room.code}`,
   members: Object.fromEntries(
     Object.entries(room.members ?? {}).map(([memberId, member]) => [
       memberId,
@@ -77,6 +79,7 @@ const normalizeRoom = (room: MunchsceneRoom): MunchsceneRoom => ({
 const buildRoom = ({
   hostName,
   memberId,
+  roomName,
   locationLabel,
   latitude,
   longitude,
@@ -85,6 +88,7 @@ const buildRoom = ({
 }: CreateRoomInput & { code: string; roomId: string }): MunchsceneRoom => ({
   id: roomId,
   code,
+  roomName: roomName.trim(),
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   createdBy: memberId,

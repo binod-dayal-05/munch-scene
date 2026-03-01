@@ -446,9 +446,26 @@ button {
 }
 
 .ranked-list,
-.elimination-list {
+.elimination-list,
+.recent-room-list {
   display: grid;
   gap: 0.8rem;
+}
+
+.recent-room-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(96, 82, 66, 0.1);
+  border-radius: 20px;
+  padding: 1rem;
+}
+
+.recent-room-card p {
+  margin: 0.25rem 0 0;
+  color: #687385;
 }
 
 .ranked-card-top {
@@ -477,7 +494,8 @@ button {
   }
 
   .hero-topbar,
-  .ranked-card-top {
+  .ranked-card-top,
+  .recent-room-card {
     flex-direction: column;
   }
 
