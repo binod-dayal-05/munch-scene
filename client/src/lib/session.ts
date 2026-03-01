@@ -1,4 +1,3 @@
-const MEMBER_ID_STORAGE_KEY = "munchscene.memberId";
 const RECENT_ROOMS_STORAGE_KEY = "munchscene.recentRooms";
 
 export type RecentRoomSession = {
@@ -10,17 +9,7 @@ export type RecentRoomSession = {
   updatedAt: string;
 };
 
-export const getOrCreateMemberId = (): string => {
-  const existing = window.localStorage.getItem(MEMBER_ID_STORAGE_KEY);
-
-  if (existing) {
-    return existing;
-  }
-
-  const nextId = crypto.randomUUID();
-  window.localStorage.setItem(MEMBER_ID_STORAGE_KEY, nextId);
-  return nextId;
-};
+const recentRoomsStorageKey = (uid: string) => `${RECENT_ROOMS_STORAGE_KEY}.${uid}`;
 
 export const updateRoomSearchParams = (roomId?: string, memberId?: string) => {
   const url = new URL(window.location.href);
@@ -45,8 +34,8 @@ export const readSessionFromUrl = () => ({
   memberId: new URL(window.location.href).searchParams.get("member")
 });
 
-export const listRecentRooms = (): RecentRoomSession[] => {
-  const rawValue = window.localStorage.getItem(RECENT_ROOMS_STORAGE_KEY);
+export const listRecentRooms = (uid: string): RecentRoomSession[] => {
+  const rawValue = window.localStorage.getItem(recentRoomsStorageKey(uid));
 
   if (!rawValue) {
     return [];
@@ -60,26 +49,29 @@ export const listRecentRooms = (): RecentRoomSession[] => {
   }
 };
 
-export const saveRecentRoom = (room: Omit<RecentRoomSession, "updatedAt">) => {
+export const saveRecentRoom = (
+  uid: string,
+  room: Omit<RecentRoomSession, "updatedAt">
+) => {
   const nextRooms = [
     {
       ...room,
       updatedAt: new Date().toISOString()
     },
-    ...listRecentRooms().filter(
+    ...listRecentRooms(uid).filter(
       (candidate) =>
         !(candidate.roomId === room.roomId && candidate.memberId === room.memberId)
     )
   ].slice(0, 8);
 
-  window.localStorage.setItem(RECENT_ROOMS_STORAGE_KEY, JSON.stringify(nextRooms));
+  window.localStorage.setItem(recentRoomsStorageKey(uid), JSON.stringify(nextRooms));
 };
 
-export const removeRecentRoom = (roomId: string, memberId: string) => {
-  const nextRooms = listRecentRooms().filter(
+export const removeRecentRoom = (uid: string, roomId: string, memberId: string) => {
+  const nextRooms = listRecentRooms(uid).filter(
     (candidate) =>
       !(candidate.roomId === roomId && candidate.memberId === memberId)
   );
 
-  window.localStorage.setItem(RECENT_ROOMS_STORAGE_KEY, JSON.stringify(nextRooms));
+  window.localStorage.setItem(recentRoomsStorageKey(uid), JSON.stringify(nextRooms));
 };

@@ -20,9 +20,20 @@ const readEnv = (key: RequiredEnvKey): string => {
   return value;
 };
 
+const readOptionalBoolean = (value: unknown, fallback = false): boolean => {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+};
+
 export const clientEnv = {
   appName: import.meta.env.VITE_APP_NAME ?? "Munchscene",
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080",
+  devBypassAuth: readOptionalBoolean(import.meta.env.VITE_DEV_BYPASS_AUTH, false),
   firebase: {
     apiKey: readEnv("VITE_FIREBASE_API_KEY"),
     authDomain: readEnv("VITE_FIREBASE_AUTH_DOMAIN"),

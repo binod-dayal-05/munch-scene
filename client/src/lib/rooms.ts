@@ -16,7 +16,7 @@ import {
   update
 } from "firebase/database";
 import { clientEnv } from "./config";
-import { realtimeDb } from "./firebase";
+import { auth, realtimeDb } from "./firebase";
 
 type CreateRoomInput = {
   hostName: string;
@@ -219,13 +219,25 @@ export const requestRoomResolution = async (roomId: string) => {
     updatedAt: new Date().toISOString()
   });
 
+  const currentUser = auth.currentUser;
+  const authToken = currentUser ? await currentUser.getIdToken() : null;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+
+  if (authToken) {
+    headers.authorization = `Bearer ${authToken}`;
+  }
+
+  if (clientEnv.devBypassAuth && currentUser?.uid) {
+    headers["x-dev-member-id"] = currentUser.uid;
+  }
+
   const response = await fetch(
     `${clientEnv.apiBaseUrl}/rooms/${encodeURIComponent(roomId)}/resolve`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers
     }
   );
 
