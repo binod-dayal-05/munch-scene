@@ -4,6 +4,11 @@ type ResultsViewProps = {
   result: ResolveResult;
 };
 
+const sanitizeFeedText = (value: string): string =>
+  value
+    .replace(/\bn[1i!|]*g+\s*g+[e3]*r+\b/gi, "[redacted]")
+    .replace(/\bn[1i!|]*g+\s*g+[a@]+\b/gi, "[redacted]");
+
 const formatScore = (value: number) => `${Math.round(value * 100)}%`;
 
 const priceLabel = (priceLevel?: number) => {
@@ -151,7 +156,7 @@ export function ResultsView({ result }: ResultsViewProps) {
             {result.eliminations.map((elimination) => (
               <article key={elimination.placeId} className="elimination-card">
                 <strong>{elimination.name}</strong>
-                <p>{elimination.reasons.join(" · ")}</p>
+                <p>{elimination.reasons.map(sanitizeFeedText).join(" · ")}</p>
               </article>
             ))}
           </div>

@@ -24,10 +24,10 @@ const getRestaurantSearchText = (restaurant: RestaurantCandidate) =>
   );
 
 const vibeKeywords: Record<VibePreference, string[]> = {
-  quiet: ["cafe", "coffee", "bakery", "tea", "bistro", "library"],
-  hype: ["bar", "night_club", "pub", "music", "lounge", "grill"],
-  aesthetic: ["brunch", "cafe", "dessert", "rooftop", "wine", "gallery"],
-  casual: ["restaurant", "meal_takeaway", "diner", "sandwich", "pizza", "burger"]
+  Quiet: ["cafe", "coffee", "bakery", "tea", "bistro", "library"],
+  Hype: ["bar", "night_club", "pub", "music", "lounge", "grill"],
+  Aesthetic: ["brunch", "cafe", "dessert", "rooftop", "wine", "gallery"],
+  Casual: ["restaurant", "meal_takeaway", "diner", "sandwich", "pizza", "burger"]
 };
 
 const matchesDietaryRestriction = (
@@ -35,17 +35,29 @@ const matchesDietaryRestriction = (
   restriction: UserPreferences["dietaryRestrictions"][number]
 ) => {
   const haystack = getRestaurantSearchText(restaurant);
+  const normalizedRestriction = normalizeText(restriction);
   const keywords =
-    restriction === "gluten_free"
+    normalizedRestriction === "gluten_free"
       ? ["gluten free", "gluten-free"]
-      : [restriction.replace("_", " "), restriction];
+      : [
+          normalizedRestriction.replace("_", " "),
+          normalizedRestriction
+        ];
 
-  return keywords.some((keyword) => haystack.includes(keyword));
+  return keywords.some((keyword) => haystack.includes(normalizeText(keyword)));
 };
 
 const isStrictDietaryRestriction = (
   restriction: UserPreferences["dietaryRestrictions"][number]
-) => restriction === "halal" || restriction === "kosher" || restriction === "gluten_free";
+) => {
+  const normalizedRestriction = normalizeText(restriction);
+
+  return (
+    normalizedRestriction === "halal" ||
+    normalizedRestriction === "kosher" ||
+    normalizedRestriction === "gluten_free"
+  );
+};
 
 const violatesHardConstraints = (
   room: MunchsceneRoom,
@@ -61,7 +73,7 @@ const violatesHardConstraints = (
       restaurant.priceLevel !== undefined &&
       restaurant.priceLevel > preferences.budgetMax
     ) {
-      reasons.push(`${member.name} budget ceiling exceeded`);
+      reasons.push("Budget ceiling exceeded");
     }
 
     if (context.anchor) {
@@ -73,7 +85,7 @@ const violatesHardConstraints = (
       );
 
       if (distance > preferences.maxDistanceMeters) {
-        reasons.push(`${member.name} max distance exceeded`);
+        reasons.push("Max distance exceeded");
       }
     }
 
@@ -82,7 +94,7 @@ const violatesHardConstraints = (
         isStrictDietaryRestriction(restriction) &&
         !matchesDietaryRestriction(restaurant, restriction)
       ) {
-        reasons.push(`${member.name} dietary restriction unmet: ${restriction}`);
+        reasons.push(`Dietary restriction unmet: ${restriction}`);
       }
     }
   }
@@ -112,7 +124,7 @@ const vibeScore = (restaurant: RestaurantCandidate, vibe: VibePreference): numbe
   const matches = keywords.filter((keyword) => haystack.includes(keyword)).length;
 
   if (matches === 0) {
-    return vibe === "casual" ? 0.5 : 0.2;
+    return normalizeText(vibe) === "casual" ? 0.5 : 0.2;
   }
 
   return Math.min(1, matches / Math.max(keywords.length / 2, 1));

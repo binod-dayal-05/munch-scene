@@ -9,7 +9,7 @@ import {
   type UserPreferences
 } from "@munchscene/shared";
 import { PreferenceEditor } from "./components/PreferenceEditor";
-import { ResultsView } from "./components/ResultsView";
+import { Toggle } from "./components/Toggle";
 import {
   createRoom,
   hydrateRoomSession,
@@ -27,6 +27,7 @@ import {
   saveRecentRoom,
   updateRoomSearchParams
 } from "./lib/session";
+import { readUserThemePreference, saveUserThemePreference } from "./lib/userSettings";
 import { auth } from "./lib/firebase";
 import {
   loginWithEmailPassword,
@@ -35,19 +36,24 @@ import {
 } from "./lib/auth";
 
 type Mode = "welcome" | "lobby";
+type HomeIntent = "create" | "join";
 
 type Notice = {
   tone: "error" | "info";
   message: string;
 };
 
+const THEME_STORAGE_KEY = "munchscene.theme";
+const themeStorageKeyForUser = (uid: string) => `munchscene.theme.${uid}`;
+
 const describeAuthError = (
   error: unknown,
   provider: "email" | "general"
 ): string => {
-  const code = typeof error === "object" && error && "code" in error
-    ? String((error as { code?: unknown }).code ?? "")
-    : "";
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
 
   if (code === "auth/operation-not-allowed") {
     return provider === "email"
@@ -99,8 +105,45 @@ const initialJoinForm = {
   code: ""
 };
 
+const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
+const formatPrice = (level?: number) => (level === undefined ? "-" : "$".repeat(Math.max(level, 1)));
+const capitalizeFirst = (value: string): string =>
+  value.length > 0 ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+const formatDistanceKm = (meters: number): string => {
+  const km = meters / 1000;
+  const normalized = Number.isInteger(km)
+    ? String(km)
+    : km.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+
+  return `${normalized}km`;
+};
+const sanitizeFeedText = (value: string): string =>
+  value
+    .replace(/\bn[1i!|]*g+\s*g+[e3]*r+\b/gi, "[redacted]")
+    .replace(/\bn[1i!|]*g+\s*g+[a@]+\b/gi, "[redacted]");
+
+const toFriendlyReason = (value: string): string => {
+  const sanitized = sanitizeFeedText(value);
+
+  if (/budget ceiling exceeded/i.test(sanitized)) {
+    return "Over budget for someone in the room";
+  }
+
+  if (/max distance exceeded/i.test(sanitized)) {
+    return "Too far for someone in the room";
+  }
+
+  const dietaryMatch = sanitized.match(/dietary restriction unmet:\s*(.+)$/i);
+  if (dietaryMatch) {
+    return `Does not match a dietary need (${dietaryMatch[1]})`;
+  }
+
+  return sanitized;
+};
+
 export default function App() {
   const [mode, setMode] = useState<Mode>("welcome");
+  const [homeIntent, setHomeIntent] = useState<HomeIntent>("create");
   const [memberId, setMemberId] = useState<string>("");
   const [room, setRoom] = useState<MunchsceneRoom | null>(null);
   const [result, setResult] = useState<ResolveResult | null>(null);
@@ -114,7 +157,96 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState("");
   const [authUserEmail, setAuthUserEmail] = useState("");
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isThemeReadyForSync, setIsThemeReadyForSync] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark";
+  });
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("theme-dark", isDarkMode);
+    window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
+    if (memberId) {
+      window.localStorage.setItem(
+        themeStorageKeyForUser(memberId),
+        isDarkMode ? "dark" : "light"
+      );
+    }
+  }, [isDarkMode, memberId]);
+
+  useEffect(() => {
+    if (!memberId) {
+      setIsThemeReadyForSync(false);
+      return;
+    }
+
+    setIsThemeReadyForSync(false);
+    let isCancelled = false;
+
+    const hydrateTheme = async () => {
+      try {
+        const remoteTheme = await readUserThemePreference(memberId);
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (remoteTheme) {
+          setIsDarkMode(remoteTheme === "dark");
+          window.localStorage.setItem(THEME_STORAGE_KEY, remoteTheme);
+          window.localStorage.setItem(themeStorageKeyForUser(memberId), remoteTheme);
+        } else {
+          const localTheme =
+            window.localStorage.getItem(themeStorageKeyForUser(memberId)) ??
+            window.localStorage.getItem(THEME_STORAGE_KEY) ??
+            "light";
+          const nextTheme = localTheme === "dark" ? "dark" : "light";
+
+          setIsDarkMode(nextTheme === "dark");
+          window.localStorage.setItem(themeStorageKeyForUser(memberId), nextTheme);
+          void saveUserThemePreference(memberId, nextTheme).catch(() => {
+            // Local preference still works if Firebase write is blocked.
+          });
+        }
+      } catch {
+        if (isCancelled) {
+          return;
+        }
+
+        const localTheme =
+          window.localStorage.getItem(themeStorageKeyForUser(memberId)) ??
+          window.localStorage.getItem(THEME_STORAGE_KEY);
+        if (localTheme === "dark" || localTheme === "light") {
+          setIsDarkMode(localTheme === "dark");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsThemeReadyForSync(true);
+        }
+      }
+    };
+
+    void hydrateTheme();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [memberId]);
+
+  useEffect(() => {
+    if (!memberId || !isThemeReadyForSync) {
+      return;
+    }
+
+    void saveUserThemePreference(memberId, isDarkMode ? "dark" : "light").catch(() => {
+      // Keep local persistence even if Firebase write fails.
+    });
+  }, [isDarkMode, memberId, isThemeReadyForSync]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -152,6 +284,7 @@ export default function App() {
       const session = readSessionFromUrl();
 
       if (!session.roomId) {
+        setRecentRooms(listRecentRooms(nextMemberId));
         return;
       }
 
@@ -175,6 +308,7 @@ export default function App() {
             removeRecentRoom(nextMemberId, session.roomId, session.memberId);
             setRecentRooms(listRecentRooms(nextMemberId));
           }
+
           updateRoomSearchParams();
           setNotice({
             tone: "info",
@@ -188,6 +322,84 @@ export default function App() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!room) {
+      return;
+    }
+
+    const subscription = subscribeToRoom(room.id, (nextRoom) => {
+      setRoom(nextRoom);
+
+      if (!nextRoom) {
+        setResult(null);
+        setMode("welcome");
+        updateRoomSearchParams();
+        setNotice({
+          tone: "error",
+          message: "This room was removed."
+        });
+        return;
+      }
+
+      saveRecentRoom(memberId, {
+        roomId: nextRoom.id,
+        memberId,
+        roomCode: nextRoom.code,
+        roomName: nextRoom.roomName,
+        city: nextRoom.location.label
+      });
+      setRecentRooms(listRecentRooms(memberId));
+    });
+
+    return subscription.unsubscribe;
+  }, [memberId, room?.id]);
+
+  useEffect(() => {
+    if (!room?.latestResultId) {
+      setResult(null);
+      return;
+    }
+
+    const subscription = subscribeToResult(room.id, room.latestResultId, setResult);
+    return subscription.unsubscribe;
+  }, [room?.id, room?.latestResultId]);
+
+  const currentMember = useMemo(() => {
+    if (!room || !memberId) {
+      return null;
+    }
+
+    return room.members[memberId] ?? null;
+  }, [memberId, room]);
+
+  const sortedMembers = useMemo(() => {
+    if (!room) {
+      return [];
+    }
+
+    return Object.values(room.members).sort(
+      (left, right) => Number(right.isHost) - Number(left.isHost)
+    );
+  }, [room]);
+
+  const readiness = useMemo(() => {
+    if (!room) {
+      return { completed: 0, total: 0 };
+    }
+
+    const members = Object.values(room.members);
+    const completed = members.filter((member) => {
+      const prefs = member.preferences ?? defaultUserPreferences();
+      return (
+        prefs.cuisinePreferences.length > 0 &&
+        prefs.vibePreference &&
+        prefs.maxDistanceMeters > 0
+      );
+    }).length;
+
+    return { completed, total: members.length };
+  }, [room]);
 
   const handleEmailAuthSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -243,55 +455,6 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (!room) {
-      return;
-    }
-
-    const subscription = subscribeToRoom(room.id, (nextRoom) => {
-      setRoom(nextRoom);
-
-      if (!nextRoom) {
-        setResult(null);
-        setMode("welcome");
-        updateRoomSearchParams();
-        setNotice({
-          tone: "error",
-          message: "This room was removed."
-        });
-      } else {
-        saveRecentRoom(memberId, {
-          roomId: nextRoom.id,
-          memberId,
-          roomCode: nextRoom.code,
-          roomName: nextRoom.roomName,
-          city: nextRoom.location.label
-        });
-        setRecentRooms(listRecentRooms(memberId));
-      }
-    });
-
-    return subscription.unsubscribe;
-  }, [memberId, room?.id]);
-
-  useEffect(() => {
-    if (!room?.latestResultId) {
-      setResult(null);
-      return;
-    }
-
-    const subscription = subscribeToResult(room.id, room.latestResultId, setResult);
-    return subscription.unsubscribe;
-  }, [room?.id, room?.latestResultId]);
-
-  const currentMember = useMemo(() => {
-    if (!room || !memberId) {
-      return null;
-    }
-
-    return room.members[memberId] ?? null;
-  }, [memberId, room]);
-
   const handleCreateRoom = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -319,20 +482,20 @@ export default function App() {
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
-        saveRecentRoom(memberId, {
-          roomId: nextRoom.id,
-          memberId,
-          roomCode: nextRoom.code,
-          roomName: nextRoom.roomName,
-          city: nextRoom.location.label
-        });
-        setRecentRooms(listRecentRooms(memberId));
+      saveRecentRoom(memberId, {
+        roomId: nextRoom.id,
+        memberId,
+        roomCode: nextRoom.code,
+        roomName: nextRoom.roomName,
+        city: nextRoom.location.label
+      });
+      setRecentRooms(listRecentRooms(memberId));
       updateRoomSearchParams(nextRoom.id, memberId);
+      setCreateForm(initialCreateForm);
     } catch (error) {
       setNotice({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Unable to create room right now"
+        message: error instanceof Error ? error.message : "Unable to create room right now"
       });
     } finally {
       setLoading(false);
@@ -375,8 +538,7 @@ export default function App() {
     } catch (error) {
       setNotice({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Unable to join that room right now"
+        message: error instanceof Error ? error.message : "Unable to join that room right now"
       });
     } finally {
       setJoinForm(initialJoinForm);
@@ -405,8 +567,7 @@ export default function App() {
     } catch (error) {
       setNotice({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to save preferences"
+        message: error instanceof Error ? error.message : "Failed to save preferences"
       });
     }
   };
@@ -426,40 +587,6 @@ export default function App() {
     }
   };
 
-  const handleUseMyLocation = async () => {
-    if (!navigator.geolocation) {
-      setNotice({
-        tone: "error",
-        message: "Geolocation is not available in this browser."
-      });
-      return;
-    }
-
-    setLoading(true);
-    setNotice(null);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCreateForm((current) => ({
-          ...current,
-          latitude: position.coords.latitude.toFixed(6),
-          longitude: position.coords.longitude.toFixed(6),
-          locationLabel:
-            current.locationLabel || "Current location"
-        }));
-        setLoading(false);
-      },
-      () => {
-        setNotice({
-          tone: "error",
-          message:
-            "Location permission was denied. You can still paste latitude and longitude manually."
-        });
-        setLoading(false);
-      }
-    );
-  };
-
   const handleResolve = async () => {
     if (!room || !currentMember?.isHost) {
       return;
@@ -477,8 +604,7 @@ export default function App() {
     } catch (error) {
       setNotice({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to queue room resolution"
+        message: error instanceof Error ? error.message : "Failed to queue room resolution"
       });
     } finally {
       setLoading(false);
@@ -528,277 +654,276 @@ export default function App() {
     setResult(null);
     setMode("welcome");
     setNotice(null);
+    setIsMobileMenuOpen(false);
     updateRoomSearchParams();
   };
 
   return (
     <div className="app-shell">
-      <div className="background-orb orb-left" />
-      <div className="background-orb orb-right" />
-      <main className="page">
-        <section className="hero-card">
-          <div className="hero-topbar">
-            <div>
-              <p className="eyebrow">Fairness-first group dining</p>
-              <h1>{APP_NAME}</h1>
-              <p className="lede">
-                Real-time restaurant decision rooms for groups who want less
-                arguing and better compromises.
-              </p>
-            </div>
+      <header className="topbar">
+        <div className="brand-block">
+          <p className="kicker">Find your next:</p>
+          <button
+            type="button"
+            className="brand-home-btn"
+            onClick={leaveRoom}
+            aria-label="Go to home"
+          >
+            <h1>{APP_NAME}</h1>
+          </button>
+        </div>
 
-            <div className="hero-actions">
-              {mode === "lobby" ? (
-                <button type="button" className="button button-ghost" onClick={leaveRoom}>
-                  Home
-                </button>
-              ) : null}
-              <div className="profile-menu" ref={profileMenuRef}>
-                <button
-                  type="button"
-                  className="profile-button"
-                  onClick={() => setIsProfileMenuOpen((current) => !current)}
-                  aria-expanded={isProfileMenuOpen}
-                  aria-label="Open account menu"
-                >
-                  <span className="profile-avatar">
-                    {memberId ? (authUserEmail || "U").slice(0, 1).toUpperCase() : "Log in"}
-                  </span>
-                </button>
-                {isProfileMenuOpen ? (
-                  <div className="profile-dropdown">
-                    {memberId ? (
-                      <div className="profile-signed-in">
-                        <span className="auth-tag">
-                          Signed in{authUserEmail ? `: ${authUserEmail}` : ""}
-                        </span>
-                        <button
-                          type="button"
-                          className="button button-ghost"
-                          onClick={handleSignOut}
-                          disabled={loading}
-                        >
-                          Sign out
-                        </button>
-                      </div>
-                    ) : (
-                      <form className="auth-form" onSubmit={handleEmailAuthSubmit}>
-                        <div className="auth-mode-toggle">
-                          <button
-                            type="button"
-                            className={`pill ${authMode === "signin" ? "pill-active" : ""}`}
-                            onClick={() => setAuthMode("signin")}
-                            disabled={loading}
-                          >
-                            Sign in
-                          </button>
-                          <button
-                            type="button"
-                            className={`pill ${authMode === "signup" ? "pill-active" : ""}`}
-                            onClick={() => setAuthMode("signup")}
-                            disabled={loading}
-                          >
-                            Sign up
-                          </button>
-                        </div>
-                        <label>
-                          <span>Email</span>
-                          <input
-                            type="email"
-                            autoComplete="email"
-                            value={authEmail}
-                            onChange={(event) => setAuthEmail(event.target.value)}
-                            required
-                          />
-                        </label>
-                        <label>
-                          <span>Password</span>
-                          <input
-                            type="password"
-                            autoComplete={
-                              authMode === "signin" ? "current-password" : "new-password"
-                            }
-                            minLength={6}
-                            value={authPassword}
-                            onChange={(event) => setAuthPassword(event.target.value)}
-                            required
-                          />
-                        </label>
-                        <button
-                          type="submit"
-                          className="button button-secondary"
-                          disabled={loading}
-                        >
-                          {authMode === "signin" ? "Sign in" : "Create account"}
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
+        <button
+          type="button"
+          className={`mobile-menu-toggle ${isMobileMenuOpen ? "mobile-menu-toggle-open" : ""}`.trim()}
+          aria-label="Toggle menu"
+          aria-expanded={isMobileMenuOpen}
+          onClick={() => setIsMobileMenuOpen((current) => !current)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
 
-        {notice ? (
-          <div className={`notice notice-${notice.tone}`}>{notice.message}</div>
-        ) : null}
+        <div className={`topbar-actions ${isMobileMenuOpen ? "topbar-actions-open" : ""}`.trim()}>
+          <Toggle
+            isChecked={isDarkMode}
+            handleChange={(event) => setIsDarkMode(event.target.checked)}
+          />
 
-        {mode === "welcome" ? (
-          <section className="panel-grid">
-            <form className="panel" onSubmit={handleCreateRoom}>
-              <div className="panel-header">
-                <h2>Create a room</h2>
-                <p>Name the group, set the city, and become the host.</p>
-              </div>
+          {mode === "lobby" ? (
+            <button type="button" className="ghost-btn topbar-exit-btn" onClick={leaveRoom}>
+              Exit room
+            </button>
+          ) : null}
 
-              <label className="field">
-                <span>Your name</span>
-                <input
-                  required
-                  minLength={2}
-                  value={createForm.hostName}
-                  onChange={(event) =>
-                    setCreateForm((current) => ({
-                      ...current,
-                      hostName: event.target.value
-                    }))
-                  }
-                />
-              </label>
+          <div className="profile-menu" ref={profileMenuRef}>
+            <button
+              type="button"
+              className={`profile-button ${memberId ? "" : "profile-button-login"}`.trim()}
+              onClick={() => setIsProfileMenuOpen((current) => !current)}
+              aria-expanded={isProfileMenuOpen}
+              aria-label="Open account menu"
+            >
+              <span className={`profile-avatar ${memberId ? "" : "profile-avatar-login"}`.trim()}>
+                {memberId ? (authUserEmail || "U").slice(0, 1).toUpperCase() : "Log in"}
+              </span>
+            </button>
 
-              <label className="field">
-                <span>Room name</span>
-                <input
-                  required
-                  minLength={2}
-                  value={createForm.roomName}
-                  placeholder="Friday dinner crew"
-                  onChange={(event) =>
-                    setCreateForm((current) => ({
-                      ...current,
-                      roomName: event.target.value
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Location label</span>
-                <input
-                  required
-                  value={createForm.locationLabel}
-                  placeholder="Vancouver"
-                  onChange={(event) =>
-                    setCreateForm((current) => ({
-                      ...current,
-                      locationLabel: event.target.value
-                    }))
-                  }
-                />
-              </label>
-
-              <p className="helper-copy">
-                City is enough for now. Browser location is optional and only helps
-                later with distance-based scoring.
-              </p>
-
-              <button
-                type="button"
-                className="button button-ghost"
-                onClick={handleUseMyLocation}
-                disabled={loading}
-              >
-                Use my browser location
-              </button>
-
-              <button className="button" disabled={loading}>
-                {loading ? "Creating..." : "Create room"}
-              </button>
-            </form>
-
-            <form className="panel" onSubmit={handleJoinRoom}>
-              <div className="panel-header">
-                <h2>Join a room</h2>
-                <p>Hop into an existing group with a six-character room code.</p>
-              </div>
-
-              <label className="field">
-                <span>Your name</span>
-                <input
-                  required
-                  minLength={2}
-                  value={joinForm.name}
-                  onChange={(event) =>
-                    setJoinForm((current) => ({
-                      ...current,
-                      name: event.target.value
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Room code</span>
-                <input
-                  required
-                  minLength={6}
-                  maxLength={6}
-                  value={joinForm.code}
-                  placeholder="AB12CD"
-                  onChange={(event) =>
-                    setJoinForm((current) => ({
-                      ...current,
-                      code: event.target.value.toUpperCase()
-                    }))
-                  }
-                />
-              </label>
-
-              <button className="button button-secondary" disabled={loading}>
-                {loading ? "Joining..." : "Join room"}
-              </button>
-            </form>
-
-            <section className="panel">
-              <div className="panel-header">
-                <h2>Recent rooms</h2>
-                <p>Jump back into the friend groups on this browser.</p>
-              </div>
-
-              {recentRooms.length === 0 ? (
-                <p className="helper-copy">
-                  No recent lobbies yet. Create one or join with a code.
-                </p>
-              ) : (
-                <div className="recent-room-list">
-                  {recentRooms.map((recentRoom) => (
-                    <article
-                      key={`${recentRoom.roomId}:${recentRoom.memberId}`}
-                      className="recent-room-card"
+            {isProfileMenuOpen ? (
+              <div className="profile-dropdown">
+                {memberId ? (
+                  <div className="profile-signed-in">
+                    <span className="auth-label">
+                      Signed in{authUserEmail ? ` as ${authUserEmail}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={handleSignOut}
+                      disabled={loading}
                     >
-                      <div>
-                        <strong>{recentRoom.roomName}</strong>
-                        <p>
-                          {recentRoom.city} · code {recentRoom.roomCode}
-                        </p>
-                      </div>
+                      Sign out
+                    </button>
+                  </div>
+                ) : (
+                  <form className="auth-form" onSubmit={handleEmailAuthSubmit}>
+                    <div className="auth-mode-toggle">
                       <button
                         type="button"
-                        className="button button-ghost"
+                        className={`mode-chip ${authMode === "signin" ? "mode-chip-active" : ""}`}
+                        onClick={() => setAuthMode("signin")}
+                        disabled={loading}
+                      >
+                        Sign in
+                      </button>
+                      <button
+                        type="button"
+                        className={`mode-chip ${authMode === "signup" ? "mode-chip-active" : ""}`}
+                        onClick={() => setAuthMode("signup")}
+                        disabled={loading}
+                      >
+                        Sign up
+                      </button>
+                    </div>
+
+                    <label>
+                      <span>Email</span>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={authEmail}
+                        onChange={(event) => setAuthEmail(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>Password</span>
+                      <input
+                        type="password"
+                        autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                        minLength={6}
+                        value={authPassword}
+                        onChange={(event) => setAuthPassword(event.target.value)}
+                        required
+                      />
+                    </label>
+
+                    <button type="submit" className="primary-btn" disabled={loading}>
+                      {authMode === "signin" ? "Sign in" : "Create account"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      {notice ? <div className={`notice notice-${notice.tone}`}>{notice.message}</div> : null}
+
+      <main className="scene">
+        {mode === "welcome" ? (
+          <section className="entry-experience">
+            <aside className="story-rail">
+              <h2>How it works</h2>
+              <p>
+                Plan a Munchscene or join a scene with your friends. Add your
+                preferences, and the fairness engine will make the final call on the munch.
+              </p>
+              <ol className="flow-list">
+                <li>Gather your friends</li>
+                <li>Add group preferences</li>
+                <li>Find the perfect spot</li>
+              </ol>
+
+              <div className="recent-strip">
+                <h3>Recent rooms</h3>
+                {recentRooms.length === 0 ? (
+                  <p>No rooms yet on this account.</p>
+                ) : (
+                  <div className="recent-list">
+                    {recentRooms.map((recentRoom) => (
+                      <button
+                        type="button"
+                        key={`${recentRoom.roomId}:${recentRoom.memberId}`}
+                        className="recent-pill"
                         onClick={() =>
-                          handleOpenRecentRoom(
-                            recentRoom.roomId,
-                            recentRoom.memberId
-                          )
+                          handleOpenRecentRoom(recentRoom.roomId, recentRoom.memberId)
                         }
                         disabled={loading}
                       >
-                        Open lobby
+                        <strong>{recentRoom.roomName}</strong>
+                        <span>{capitalizeFirst(recentRoom.city)} • {recentRoom.roomCode}</span>
                       </button>
-                    </article>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            <section className="entry-studio">
+              <div className="studio-tabs">
+                <button
+                  type="button"
+                  className={`tab-btn ${homeIntent === "create" ? "tab-btn-active" : ""}`}
+                  onClick={() => setHomeIntent("create")}
+                >
+                  Start a room
+                </button>
+                <button
+                  type="button"
+                  className={`tab-btn ${homeIntent === "join" ? "tab-btn-active" : ""}`}
+                  onClick={() => setHomeIntent("join")}
+                >
+                  Join by code
+                </button>
+              </div>
+
+              {homeIntent === "create" ? (
+                <form className="studio-form" onSubmit={handleCreateRoom}>
+                  <h3>Host a new session</h3>
+                  <div className="studio-grid">
+                    <label>
+                      <span>Your name</span>
+                      <input
+                        required
+                        minLength={2}
+                        value={createForm.hostName}
+                        onChange={(event) =>
+                          setCreateForm((current) => ({ ...current, hostName: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Room name</span>
+                      <input
+                        required
+                        minLength={2}
+                        value={createForm.roomName}
+                        placeholder="Friday dinner crew"
+                        onChange={(event) =>
+                          setCreateForm((current) => ({ ...current, roomName: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>City or area</span>
+                      <input
+                        required
+                        value={createForm.locationLabel}
+                        placeholder="Vancouver"
+                        onChange={(event) =>
+                          setCreateForm((current) => ({
+                            ...current,
+                            locationLabel: event.target.value
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <button type="submit" className="primary-btn" disabled={loading}>
+                    {loading ? "Creating room..." : "Launch room"}
+                  </button>
+                </form>
+              ) : (
+                <form className="studio-form" onSubmit={handleJoinRoom}>
+                  <h3>Enter an existing room</h3>
+                  <div className="studio-grid">
+                    <label>
+                      <span>Your name</span>
+                      <input
+                        required
+                        minLength={2}
+                        value={joinForm.name}
+                        onChange={(event) =>
+                          setJoinForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Room code</span>
+                      <input
+                        required
+                        minLength={6}
+                        maxLength={6}
+                        value={joinForm.code}
+                        placeholder="AB12CD"
+                        onChange={(event) =>
+                          setJoinForm((current) => ({
+                            ...current,
+                            code: event.target.value.toUpperCase()
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <button type="submit" className="primary-btn" disabled={loading}>
+                    {loading ? "Joining..." : "Enter room"}
+                  </button>
+                </form>
               )}
             </section>
           </section>
@@ -806,131 +931,201 @@ export default function App() {
 
         {mode === "lobby" && room && currentMember ? (
           <>
-            {result ? <ResultsView result={result} /> : null}
+            {result ? (
+              <section className="reveal-stage">
+                {result.rankedRestaurants[0] ? (
+                  <>
+                    <p className="reveal-kicker">Fairness reveal</p>
+                    <h2>{result.rankedRestaurants[0].name}</h2>
+                    <p className="reveal-address">
+                      {result.rankedRestaurants[0].address ?? "Address unavailable"}
+                    </p>
 
-            <section className="room-layout">
-              <div className="panel room-summary">
-                <div className="panel-header">
-                  <div>
-                    <h2>{room.roomName}</h2>
-                    <p>Room code {room.code}</p>
-                    <p>{room.location.label}</p>
-                  </div>
-                  <div className="status-group">
-                    <span className={`status status-${room.status}`}>{room.status}</span>
-                    <button
-                      type="button"
-                      className="button button-ghost"
-                      onClick={leaveRoom}
-                    >
-                      Leave
-                    </button>
-                  </div>
-                </div>
+                    <div className="reveal-metrics">
+                      <article>
+                        <span>Final score</span>
+                        <strong>{formatPercent(result.rankedRestaurants[0].finalScore)}</strong>
+                      </article>
+                      <article>
+                        <span>Fairness</span>
+                        <strong>{formatPercent(result.rankedRestaurants[0].fairnessScore)}</strong>
+                      </article>
+                      <article>
+                        <span>Mean match</span>
+                        <strong>{formatPercent(result.rankedRestaurants[0].meanScore)}</strong>
+                      </article>
+                      <article>
+                        <span>Filtered out</span>
+                        <strong>{result.eliminatedCount}</strong>
+                      </article>
+                    </div>
 
-                <div className="stats-row">
-                  <div className="stat-card">
-                    <span>People in room</span>
-                    <strong>
-                      {Object.keys(room.members).length}/{MAX_ROOM_SIZE}
-                    </strong>
-                  </div>
-                  <div className="stat-card">
-                    <span>City</span>
-                    <strong>{room.location.label}</strong>
-                  </div>
-                </div>
+                    <p className="reveal-explainer">
+                      {result.rankedRestaurants[0].explanation ??
+                        "This option best balances the room while minimizing compromise pain."}
+                    </p>
 
-                <div className="member-list">
-                  {Object.values(room.members)
-                    .sort((left, right) => Number(right.isHost) - Number(left.isHost))
-                    .map((member) => {
-                      const memberPreferences =
-                        member.preferences ?? defaultUserPreferences();
-
-                      return (
-                        <article
-                          key={member.id}
-                          className={`member-card ${
-                            member.id === currentMember.id ? "member-card-active" : ""
-                          }`}
-                        >
-                          <div className="member-header">
-                            <strong>{member.name}</strong>
-                            <span className="tag">
-                              {member.isHost ? "Host" : "Guest"}
-                            </span>
-                          </div>
-                          <p>
-                            {memberPreferences.cuisinePreferences.join(", ") ||
-                              "No cuisines yet"}
-                          </p>
+                    <div className="podium-row">
+                      {result.rankedRestaurants.slice(0, 3).map((restaurant, index) => (
+                        <article key={restaurant.placeId} className="podium-card">
+                          <span>#{index + 1}</span>
+                          <strong>{restaurant.name}</strong>
                           <small>
-                            {memberPreferences.vibePreference} • budget{" "}
-                            {memberPreferences.budgetMax} •{" "}
-                            {memberPreferences.maxDistanceMeters}m
+                            {formatPercent(restaurant.finalScore)} • {formatPrice(restaurant.priceLevel)}
                           </small>
                         </article>
-                      );
-                    })}
-                </div>
-
-                {currentMember.isHost ? (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={handleResolve}
-                    disabled={loading || Object.keys(room.members).length === 0}
-                  >
-                    {room.status === "resolving"
-                      ? "Resolving group tension..."
-                      : result
-                        ? "Re-run fairness engine"
-                        : "Resolve this room"}
-                  </button>
+                      ))}
+                    </div>
+                  </>
                 ) : (
-                  <p className="helper-copy">
-                    The host will trigger the fairness engine when everyone is ready.
-                  </p>
+                  <>
+                    <p className="reveal-kicker">Fairness reveal</p>
+                    <h2>No ranked restaurants</h2>
+                    <p className="reveal-explainer">
+                      The resolver completed, but all options were filtered by hard constraints.
+                    </p>
+                  </>
                 )}
-              </div>
+              </section>
+            ) : null}
 
-              <div className="panel">
-                <div className="panel-header">
-                  <h2>Your preferences</h2>
-                  <p>These update live for everyone in the room.</p>
+            <section className="live-room">
+              <header className="live-header">
+                <div>
+                  <h2>{room.roomName}</h2>
+                  <p>
+                    Code <strong>{room.code}</strong> • {capitalizeFirst(room.location.label)}
+                  </p>
                 </div>
 
-                <label className="field">
-                  <span>Display name</span>
-                  <input
-                    value={currentMember.name}
-                    onChange={(event) =>
-                      setRoom((currentRoom) =>
-                        currentRoom
-                          ? {
-                              ...currentRoom,
-                              members: {
-                                ...currentRoom.members,
-                                [currentMember.id]: {
-                                  ...currentMember,
-                                  name: event.target.value
+                <div className="live-controls">
+                  {currentMember.isHost ? (
+                    <button
+                      type="button"
+                      className="primary-btn"
+                      onClick={handleResolve}
+                      disabled={loading || sortedMembers.length === 0}
+                    >
+                      {room.status === "resolving"
+                        ? "Resolving..."
+                        : result
+                          ? "Run again"
+                          : "Resolve room"}
+                    </button>
+                  ) : (
+                    <p className="waiting-note">Waiting for host to resolve.</p>
+                  )}
+                </div>
+              </header>
+
+              <section className="member-arena">
+                <div className="arena-headline">
+                  <h3>People in the room</h3>
+                  <span>
+                    {sortedMembers.length}/{MAX_ROOM_SIZE} Joined • {readiness.completed}/{readiness.total} Ready
+                  </span>
+                </div>
+
+                <div className="member-orbit">
+                  {sortedMembers.map((member) => {
+                    const prefs = member.preferences ?? defaultUserPreferences();
+                    const isMe = member.id === currentMember.id;
+
+                    return (
+                      <article key={member.id} className={`orbit-member ${isMe ? "orbit-member-me" : ""}`}>
+                        <div className="member-topline">
+                          <strong>{member.name}</strong>
+                          <span>{member.isHost ? "Host" : "Guest"}</span>
+                        </div>
+                        <p>
+                          {prefs.cuisinePreferences.length > 0
+                            ? prefs.cuisinePreferences.map((value) => capitalizeFirst(value.trim())).join(", ")
+                            : "No cuisines yet"}
+                        </p>
+                        <small>
+                          {capitalizeFirst(prefs.vibePreference)} • Budget {prefs.budgetMax} •{" "}
+                          {formatDistanceKm(prefs.maxDistanceMeters)}
+                        </small>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="workbench">
+                <article className="self-panel">
+                  <h3>Your live profile</h3>
+                  <label>
+                    <span>Display name</span>
+                    <input
+                      value={currentMember.name}
+                      onChange={(event) =>
+                        setRoom((currentRoom) =>
+                          currentRoom
+                            ? {
+                                ...currentRoom,
+                                members: {
+                                  ...currentRoom.members,
+                                  [currentMember.id]: {
+                                    ...currentMember,
+                                    name: event.target.value
+                                  }
                                 }
                               }
-                            }
-                          : currentRoom
-                      )
-                    }
-                    onBlur={(event) => handleNameBlur(event.target.value)}
-                  />
-                </label>
+                            : currentRoom
+                        )
+                      }
+                      onBlur={(event) => handleNameBlur(event.target.value)}
+                    />
+                  </label>
 
-                <PreferenceEditor
-                  disabled={loading}
-                  preferences={currentMember.preferences ?? defaultUserPreferences()}
-                  onChange={handlePreferencesChange}
-                />
-              </div>
+                  <PreferenceEditor
+                    disabled={loading || room.status === "resolving"}
+                    preferences={currentMember.preferences ?? defaultUserPreferences()}
+                    onChange={handlePreferencesChange}
+                  />
+                </article>
+
+                <article className="signal-panel">
+                  <h3>Room information</h3>
+                  <div className="signal-grid">
+                    <div>
+                      <span>Room status</span>
+                      <strong>{capitalizeFirst(room.status)}</strong>
+                    </div>
+                    <div>
+                      <span>Members joined</span>
+                      <strong>{sortedMembers.length}</strong>
+                    </div>
+                    <div>
+                      <span>Capacity left</span>
+                      <strong>{Math.max(0, MAX_ROOM_SIZE - sortedMembers.length)}</strong>
+                    </div>
+                  </div>
+
+                  {result ? (
+                    <div className="elimination-feed">
+                      <h4>Why options were removed:</h4>
+                      {result.eliminations.length === 0 ? (
+                        <p>No options were filtered out by group rules.</p>
+                      ) : (
+                        <ul>
+                          {result.eliminations.slice(0, 5).map((item) => (
+                            <li key={item.placeId}>
+                              <strong>{item.name}</strong>
+                              <span>{item.reasons.map(toFriendlyReason).join(" · ")}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="waiting-note">
+                      Once resolved, this panel shows elimination reasons and outcome signals.
+                    </p>
+                  )}
+                </article>
+              </section>
             </section>
           </>
         ) : null}
