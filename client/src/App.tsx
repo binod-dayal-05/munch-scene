@@ -21,7 +21,10 @@ import {
 } from "./lib/rooms";
 import {
   getOrCreateMemberId,
+  listRecentRooms,
+  removeRecentRoom,
   readSessionFromUrl,
+  saveRecentRoom,
   updateRoomSearchParams
 } from "./lib/session";
 
@@ -34,6 +37,7 @@ type Notice = {
 
 const initialCreateForm = {
   hostName: "",
+  roomName: "",
   locationLabel: "",
   latitude: "",
   longitude: ""
@@ -53,6 +57,7 @@ export default function App() {
   const [joinForm, setJoinForm] = useState(initialJoinForm);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [recentRooms, setRecentRooms] = useState(listRecentRooms);
 
   useEffect(() => {
     const persistedMemberId = getOrCreateMemberId();
@@ -70,8 +75,20 @@ export default function App() {
         setRoom(nextRoom);
         setMode("lobby");
         setMemberId(session.memberId ?? persistedMemberId);
+        saveRecentRoom({
+          roomId: nextRoom.id,
+          memberId: session.memberId ?? persistedMemberId,
+          roomCode: nextRoom.code,
+          roomName: nextRoom.roomName,
+          city: nextRoom.location.label
+        });
+        setRecentRooms(listRecentRooms());
       })
       .catch(() => {
+        if (session.roomId && session.memberId) {
+          removeRecentRoom(session.roomId, session.memberId);
+          setRecentRooms(listRecentRooms());
+        }
         updateRoomSearchParams();
         setNotice({
           tone: "info",
@@ -99,11 +116,20 @@ export default function App() {
           tone: "error",
           message: "This room was removed."
         });
+      } else {
+        saveRecentRoom({
+          roomId: nextRoom.id,
+          memberId,
+          roomCode: nextRoom.code,
+          roomName: nextRoom.roomName,
+          city: nextRoom.location.label
+        });
+        setRecentRooms(listRecentRooms());
       }
     });
 
     return subscription.unsubscribe;
-  }, [room?.id]);
+  }, [memberId, room?.id]);
 
   useEffect(() => {
     if (!room?.latestResultId) {
@@ -131,6 +157,7 @@ export default function App() {
     try {
       const nextRoom = await createRoom({
         hostName: createForm.hostName,
+        roomName: createForm.roomName,
         memberId,
         locationLabel: createForm.locationLabel,
         latitude: createForm.latitude ? Number(createForm.latitude) : undefined,
@@ -140,6 +167,14 @@ export default function App() {
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
+      saveRecentRoom({
+        roomId: nextRoom.id,
+        memberId,
+        roomCode: nextRoom.code,
+        roomName: nextRoom.roomName,
+        city: nextRoom.location.label
+      });
+      setRecentRooms(listRecentRooms());
       updateRoomSearchParams(nextRoom.id, memberId);
     } catch (error) {
       setNotice({
@@ -167,6 +202,14 @@ export default function App() {
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
+      saveRecentRoom({
+        roomId: nextRoom.id,
+        memberId,
+        roomCode: nextRoom.code,
+        roomName: nextRoom.roomName,
+        city: nextRoom.location.label
+      });
+      setRecentRooms(listRecentRooms());
       updateRoomSearchParams(nextRoom.id, memberId);
     } catch (error) {
       setNotice({
@@ -280,6 +323,37 @@ export default function App() {
     }
   };
 
+  const handleOpenRecentRoom = async (roomId: string, sessionMemberId: string) => {
+    setLoading(true);
+    setNotice(null);
+
+    try {
+      const nextRoom = await hydrateRoomSession(roomId, sessionMemberId);
+      setMemberId(sessionMemberId);
+      setRoom(nextRoom);
+      setResult(null);
+      setMode("lobby");
+      saveRecentRoom({
+        roomId: nextRoom.id,
+        memberId: sessionMemberId,
+        roomCode: nextRoom.code,
+        roomName: nextRoom.roomName,
+        city: nextRoom.location.label
+      });
+      setRecentRooms(listRecentRooms());
+      updateRoomSearchParams(nextRoom.id, sessionMemberId);
+    } catch (error) {
+      removeRecentRoom(roomId, sessionMemberId);
+      setRecentRooms(listRecentRooms());
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to reopen that room"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const leaveRoom = () => {
     setRoom(null);
     setResult(null);
@@ -325,7 +399,7 @@ export default function App() {
             <form className="panel" onSubmit={handleCreateRoom}>
               <div className="panel-header">
                 <h2>Create a room</h2>
-                <p>Set the location anchor and become the host.</p>
+                <p>Name the group, set the city, and become the host.</p>
               </div>
 
               <label className="field">
@@ -338,6 +412,22 @@ export default function App() {
                     setCreateForm((current) => ({
                       ...current,
                       hostName: event.target.value
+                    }))
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Room name</span>
+                <input
+                  required
+                  minLength={2}
+                  value={createForm.roomName}
+                  placeholder="Friday dinner crew"
+                  onChange={(event) =>
+                    setCreateForm((current) => ({
+                      ...current,
+                      roomName: event.target.value
                     }))
                   }
                 />
@@ -419,6 +509,48 @@ export default function App() {
                 {loading ? "Joining..." : "Join room"}
               </button>
             </form>
+
+            <section className="panel">
+              <div className="panel-header">
+                <h2>Recent rooms</h2>
+                <p>Jump back into the friend groups on this browser.</p>
+              </div>
+
+              {recentRooms.length === 0 ? (
+                <p className="helper-copy">
+                  No recent lobbies yet. Create one or join with a code.
+                </p>
+              ) : (
+                <div className="recent-room-list">
+                  {recentRooms.map((recentRoom) => (
+                    <article
+                      key={`${recentRoom.roomId}:${recentRoom.memberId}`}
+                      className="recent-room-card"
+                    >
+                      <div>
+                        <strong>{recentRoom.roomName}</strong>
+                        <p>
+                          {recentRoom.city} · code {recentRoom.roomCode}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="button button-ghost"
+                        onClick={() =>
+                          handleOpenRecentRoom(
+                            recentRoom.roomId,
+                            recentRoom.memberId
+                          )
+                        }
+                        disabled={loading}
+                      >
+                        Open lobby
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </section>
         ) : null}
 
@@ -430,7 +562,8 @@ export default function App() {
               <div className="panel room-summary">
                 <div className="panel-header">
                   <div>
-                    <h2>Room {room.code}</h2>
+                    <h2>{room.roomName}</h2>
+                    <p>Room code {room.code}</p>
                     <p>{room.location.label}</p>
                   </div>
                   <div className="status-group">

@@ -35,6 +35,7 @@ export type RoomLocation = {
 export type MunchsceneRoom = {
   id: string;
   code: string;
+  roomName: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -96,4 +97,3 @@ export type ResolveRoomResponse = {
   room: Pick<MunchsceneRoom, "id" | "code" | "status" | "latestResultId">;
   result: ResolveResult;
 };
-
