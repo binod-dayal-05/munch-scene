@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   APP_NAME,
   MAX_ROOM_SIZE,
@@ -20,19 +21,69 @@ import {
   updateMemberPreferences
 } from "./lib/rooms";
 import {
-  getOrCreateMemberId,
   listRecentRooms,
   removeRecentRoom,
   readSessionFromUrl,
   saveRecentRoom,
   updateRoomSearchParams
 } from "./lib/session";
+import { auth } from "./lib/firebase";
+import {
+  loginWithEmailPassword,
+  logoutFromMunchscene,
+  signupWithEmailPassword
+} from "./lib/auth";
 
 type Mode = "welcome" | "lobby";
 
 type Notice = {
   tone: "error" | "info";
   message: string;
+};
+
+const describeAuthError = (
+  error: unknown,
+  provider: "email" | "general"
+): string => {
+  const code = typeof error === "object" && error && "code" in error
+    ? String((error as { code?: unknown }).code ?? "")
+    : "";
+
+  if (code === "auth/operation-not-allowed") {
+    return provider === "email"
+      ? "Email/password login is disabled. Enable Firebase Auth > Sign-in method > Email/Password."
+      : "Sign-in method is disabled in Firebase Authentication.";
+  }
+
+  if (code === "auth/email-already-in-use") {
+    return "This email is already in use. Try signing in instead.";
+  }
+
+  if (code === "auth/invalid-email") {
+    return "Enter a valid email address.";
+  }
+
+  if (code === "auth/weak-password") {
+    return "Password is too weak. Use at least 6 characters.";
+  }
+
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
+    return "Incorrect email or password.";
+  }
+
+  if (code === "auth/user-not-found") {
+    return "No account found for this email.";
+  }
+
+  if (code === "auth/too-many-requests") {
+    return "Too many attempts. Wait a minute and try again.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to sign in right now.";
 };
 
 const initialCreateForm = {
@@ -57,48 +108,140 @@ export default function App() {
   const [joinForm, setJoinForm] = useState(initialJoinForm);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [recentRooms, setRecentRooms] = useState(listRecentRooms);
+  const [recentRooms, setRecentRooms] = useState(() => [] as ReturnType<typeof listRecentRooms>);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authUserEmail, setAuthUserEmail] = useState("");
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const persistedMemberId = getOrCreateMemberId();
-    setMemberId(persistedMemberId);
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!profileMenuRef.current) {
+        return;
+      }
 
-    const session = readSessionFromUrl();
+      if (profileMenuRef.current.contains(event.target as Node)) {
+        return;
+      }
 
-    if (!session.roomId || !session.memberId) {
-      return;
-    }
+      setIsProfileMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        setMemberId("");
+        setAuthUserEmail("");
+        setRoom(null);
+        setResult(null);
+        setMode("welcome");
+        setRecentRooms([]);
+        return;
+      }
+
+      const nextMemberId = user.uid;
+      setMemberId(nextMemberId);
+      setAuthUserEmail(user.email ?? "");
+
+      const session = readSessionFromUrl();
+
+      if (!session.roomId) {
+        return;
+      }
+
+      setLoading(true);
+      hydrateRoomSession(session.roomId, nextMemberId)
+        .then((nextRoom) => {
+          setRoom(nextRoom);
+          setMode("lobby");
+          saveRecentRoom(nextMemberId, {
+            roomId: nextRoom.id,
+            memberId: nextMemberId,
+            roomCode: nextRoom.code,
+            roomName: nextRoom.roomName,
+            city: nextRoom.location.label
+          });
+          setRecentRooms(listRecentRooms(nextMemberId));
+          updateRoomSearchParams(nextRoom.id, nextMemberId);
+        })
+        .catch(() => {
+          if (session.roomId && session.memberId) {
+            removeRecentRoom(nextMemberId, session.roomId, session.memberId);
+            setRecentRooms(listRecentRooms(nextMemberId));
+          }
+          updateRoomSearchParams();
+          setNotice({
+            tone: "info",
+            message: "Saved room session expired. Join again with a room code."
+          });
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleEmailAuthSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     setLoading(true);
-    hydrateRoomSession(session.roomId, session.memberId)
-      .then((nextRoom) => {
-        setRoom(nextRoom);
-        setMode("lobby");
-        setMemberId(session.memberId ?? persistedMemberId);
-        saveRecentRoom({
-          roomId: nextRoom.id,
-          memberId: session.memberId ?? persistedMemberId,
-          roomCode: nextRoom.code,
-          roomName: nextRoom.roomName,
-          city: nextRoom.location.label
-        });
-        setRecentRooms(listRecentRooms());
-      })
-      .catch(() => {
-        if (session.roomId && session.memberId) {
-          removeRecentRoom(session.roomId, session.memberId);
-          setRecentRooms(listRecentRooms());
-        }
-        updateRoomSearchParams();
-        setNotice({
-          tone: "info",
-          message: "Saved room session expired. Join again with a room code."
-        });
-      })
-      .finally(() => {
-        setLoading(false);
+    setNotice(null);
+
+    try {
+      if (authMode === "signin") {
+        await loginWithEmailPassword(authEmail.trim(), authPassword);
+      } else {
+        await signupWithEmailPassword(authEmail.trim(), authPassword);
+      }
+
+      setNotice({
+        tone: "info",
+        message:
+          authMode === "signin" ? "Signed in successfully." : "Account created and signed in."
       });
-  }, []);
+      setAuthPassword("");
+      setIsProfileMenuOpen(false);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: describeAuthError(error, "email")
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setLoading(true);
+    setNotice(null);
+
+    try {
+      await logoutFromMunchscene();
+      setAuthPassword("");
+      setJoinForm(initialJoinForm);
+      setCreateForm(initialCreateForm);
+      setIsProfileMenuOpen(false);
+      setNotice({
+        tone: "info",
+        message: "Signed out."
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: describeAuthError(error, "general")
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!room) {
@@ -117,14 +260,14 @@ export default function App() {
           message: "This room was removed."
         });
       } else {
-        saveRecentRoom({
+        saveRecentRoom(memberId, {
           roomId: nextRoom.id,
           memberId,
           roomCode: nextRoom.code,
           roomName: nextRoom.roomName,
           city: nextRoom.location.label
         });
-        setRecentRooms(listRecentRooms());
+        setRecentRooms(listRecentRooms(memberId));
       }
     });
 
@@ -151,6 +294,15 @@ export default function App() {
 
   const handleCreateRoom = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!memberId) {
+      setNotice({
+        tone: "error",
+        message: "Sign in with email/password to create a room."
+      });
+      return;
+    }
+
     setLoading(true);
     setNotice(null);
 
@@ -167,14 +319,14 @@ export default function App() {
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
-      saveRecentRoom({
-        roomId: nextRoom.id,
-        memberId,
-        roomCode: nextRoom.code,
-        roomName: nextRoom.roomName,
-        city: nextRoom.location.label
-      });
-      setRecentRooms(listRecentRooms());
+        saveRecentRoom(memberId, {
+          roomId: nextRoom.id,
+          memberId,
+          roomCode: nextRoom.code,
+          roomName: nextRoom.roomName,
+          city: nextRoom.location.label
+        });
+        setRecentRooms(listRecentRooms(memberId));
       updateRoomSearchParams(nextRoom.id, memberId);
     } catch (error) {
       setNotice({
@@ -189,6 +341,15 @@ export default function App() {
 
   const handleJoinRoom = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!memberId) {
+      setNotice({
+        tone: "error",
+        message: "Sign in with email/password to join a room."
+      });
+      return;
+    }
+
     setLoading(true);
     setNotice(null);
 
@@ -202,14 +363,14 @@ export default function App() {
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
-      saveRecentRoom({
+      saveRecentRoom(memberId, {
         roomId: nextRoom.id,
         memberId,
         roomCode: nextRoom.code,
         roomName: nextRoom.roomName,
         city: nextRoom.location.label
       });
-      setRecentRooms(listRecentRooms());
+      setRecentRooms(listRecentRooms(memberId));
       updateRoomSearchParams(nextRoom.id, memberId);
     } catch (error) {
       setNotice({
@@ -218,6 +379,7 @@ export default function App() {
           error instanceof Error ? error.message : "Unable to join that room right now"
       });
     } finally {
+      setJoinForm(initialJoinForm);
       setLoading(false);
     }
   };
@@ -324,27 +486,34 @@ export default function App() {
   };
 
   const handleOpenRecentRoom = async (roomId: string, sessionMemberId: string) => {
+    if (!memberId) {
+      setNotice({
+        tone: "error",
+        message: "Sign in with email/password to open a room."
+      });
+      return;
+    }
+
     setLoading(true);
     setNotice(null);
 
     try {
-      const nextRoom = await hydrateRoomSession(roomId, sessionMemberId);
-      setMemberId(sessionMemberId);
+      const nextRoom = await hydrateRoomSession(roomId, memberId);
       setRoom(nextRoom);
       setResult(null);
       setMode("lobby");
-      saveRecentRoom({
+      saveRecentRoom(memberId, {
         roomId: nextRoom.id,
-        memberId: sessionMemberId,
+        memberId,
         roomCode: nextRoom.code,
         roomName: nextRoom.roomName,
         city: nextRoom.location.label
       });
-      setRecentRooms(listRecentRooms());
-      updateRoomSearchParams(nextRoom.id, sessionMemberId);
+      setRecentRooms(listRecentRooms(memberId));
+      updateRoomSearchParams(nextRoom.id, memberId);
     } catch (error) {
-      removeRecentRoom(roomId, sessionMemberId);
-      setRecentRooms(listRecentRooms());
+      removeRecentRoom(memberId, roomId, sessionMemberId);
+      setRecentRooms(listRecentRooms(memberId));
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "Unable to reopen that room"
@@ -378,15 +547,96 @@ export default function App() {
               </p>
             </div>
 
-            {mode === "lobby" ? (
-              <button
-                type="button"
-                className="button button-ghost"
-                onClick={leaveRoom}
-              >
-                Home
-              </button>
-            ) : null}
+            <div className="hero-actions">
+              {mode === "lobby" ? (
+                <button type="button" className="button button-ghost" onClick={leaveRoom}>
+                  Home
+                </button>
+              ) : null}
+              <div className="profile-menu" ref={profileMenuRef}>
+                <button
+                  type="button"
+                  className="profile-button"
+                  onClick={() => setIsProfileMenuOpen((current) => !current)}
+                  aria-expanded={isProfileMenuOpen}
+                  aria-label="Open account menu"
+                >
+                  <span className="profile-avatar">
+                    {memberId ? (authUserEmail || "U").slice(0, 1).toUpperCase() : "Log in"}
+                  </span>
+                </button>
+                {isProfileMenuOpen ? (
+                  <div className="profile-dropdown">
+                    {memberId ? (
+                      <div className="profile-signed-in">
+                        <span className="auth-tag">
+                          Signed in{authUserEmail ? `: ${authUserEmail}` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          className="button button-ghost"
+                          onClick={handleSignOut}
+                          disabled={loading}
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    ) : (
+                      <form className="auth-form" onSubmit={handleEmailAuthSubmit}>
+                        <div className="auth-mode-toggle">
+                          <button
+                            type="button"
+                            className={`pill ${authMode === "signin" ? "pill-active" : ""}`}
+                            onClick={() => setAuthMode("signin")}
+                            disabled={loading}
+                          >
+                            Sign in
+                          </button>
+                          <button
+                            type="button"
+                            className={`pill ${authMode === "signup" ? "pill-active" : ""}`}
+                            onClick={() => setAuthMode("signup")}
+                            disabled={loading}
+                          >
+                            Sign up
+                          </button>
+                        </div>
+                        <label>
+                          <span>Email</span>
+                          <input
+                            type="email"
+                            autoComplete="email"
+                            value={authEmail}
+                            onChange={(event) => setAuthEmail(event.target.value)}
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span>Password</span>
+                          <input
+                            type="password"
+                            autoComplete={
+                              authMode === "signin" ? "current-password" : "new-password"
+                            }
+                            minLength={6}
+                            value={authPassword}
+                            onChange={(event) => setAuthPassword(event.target.value)}
+                            required
+                          />
+                        </label>
+                        <button
+                          type="submit"
+                          className="button button-secondary"
+                          disabled={loading}
+                        >
+                          {authMode === "signin" ? "Sign in" : "Create account"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
 

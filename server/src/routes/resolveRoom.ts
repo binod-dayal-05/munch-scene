@@ -9,11 +9,24 @@ import {
   persistResolveResult,
   updateRoomStatus
 } from "../lib/rooms";
+import {
+  requireFirebaseAuth,
+  type AuthenticatedRequest
+} from "../middleware/auth";
 
 export const resolveRoomRouter = Router();
 
-resolveRoomRouter.post("/rooms/:roomId/resolve", async (req, res) => {
-  const { roomId } = req.params;
+resolveRoomRouter.post("/rooms/:roomId/resolve", requireFirebaseAuth, async (req, res) => {
+  const roomIdParam = req.params.roomId;
+  const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+  const userId = (req as AuthenticatedRequest).user.uid;
+
+  if (!roomId) {
+    res.status(400).json({
+      error: "Missing room id"
+    });
+    return;
+  }
 
   try {
     const room = await getRoomById(roomId);
@@ -21,6 +34,13 @@ resolveRoomRouter.post("/rooms/:roomId/resolve", async (req, res) => {
     if (!room) {
       res.status(404).json({
         error: "Room not found"
+      });
+      return;
+    }
+
+    if (room.createdBy !== userId) {
+      res.status(403).json({
+        error: "Only the room host can resolve this room"
       });
       return;
     }
@@ -72,4 +92,3 @@ resolveRoomRouter.post("/rooms/:roomId/resolve", async (req, res) => {
     });
   }
 });
-

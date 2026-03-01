@@ -145,8 +145,112 @@ button {
 .hero-topbar {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
   align-items: flex-start;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.auth-tag {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(254, 225, 187, 0.85);
+  color: #8a5321;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid rgba(196, 130, 71, 0.25);
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.55rem;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-button {
+  border: 1px solid rgba(74, 94, 121, 0.22);
+  background: rgba(255, 255, 255, 0.86);
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.profile-avatar {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: #264669;
+  background: linear-gradient(135deg, rgba(255, 219, 176, 0.95), rgba(180, 211, 255, 0.95));
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(255, 249, 241, 0.98);
+  border: 1px solid rgba(87, 77, 63, 0.16);
+  box-shadow: 0 16px 34px rgba(43, 39, 30, 0.18);
+  z-index: 20;
+}
+
+.profile-signed-in {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.25rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.auth-form label span {
+  font-size: 0.78rem;
+  color: #5d6675;
+}
+
+.auth-form input {
+  border: 1px solid rgba(82, 67, 50, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  color: #1f2430;
+}
+
+.auth-mode-toggle {
+  display: flex;
+  gap: 0.4rem;
 }
 
 .panel {
@@ -211,6 +315,12 @@ button {
   background: linear-gradient(135deg, #df7a2f, #f0a654);
   color: white;
   font-weight: 700;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(57, 49, 40, 0.16);
 }
 
 .button-secondary {
@@ -497,6 +607,21 @@ button {
   .ranked-card-top,
   .recent-room-card {
     flex-direction: column;
+  }
+
+  .hero-actions,
+  .auth-tag {
+    align-self: flex-start;
+  }
+
+  .auth-actions {
+    justify-content: flex-start;
+  }
+
+  .profile-dropdown {
+    right: auto;
+    left: 0;
+    width: min(20rem, calc(100vw - 2rem));
   }
 
   .page {

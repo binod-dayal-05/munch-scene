@@ -2,7 +2,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
 import { serverEnv } from "../config/env";
 
-const app =
+export const adminApp =
   getApps()[0] ??
   initializeApp({
     credential: cert({
@@ -13,4 +13,4 @@ const app =
     databaseURL: serverEnv.firebaseDatabaseUrl
   });
 
-export const adminDb = getDatabase(app);
+export const adminDb = getDatabase(adminApp);

@@ -23,9 +23,19 @@ const readEnv = (key: RequiredServerEnvKey): string => {
   return value;
 };
 
+const readOptionalBoolean = (value: unknown, fallback = false): boolean => {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+};
+
 export const serverEnv = {
   port: Number(process.env.PORT ?? 8080),
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  devBypassAuth: readOptionalBoolean(process.env.DEV_BYPASS_AUTH, false),
   firebaseProjectId: readEnv("FIREBASE_PROJECT_ID"),
   firebaseClientEmail: readEnv("FIREBASE_CLIENT_EMAIL"),
   firebasePrivateKey: readEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n"),
