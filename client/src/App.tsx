@@ -159,6 +159,7 @@ export default function App() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isThemeReadyForSync, setIsThemeReadyForSync] = useState(false);
+  const [flippedPodiumCards, setFlippedPodiumCards] = useState<Record<string, boolean>>({});
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -364,6 +365,10 @@ export default function App() {
     const subscription = subscribeToResult(room.id, room.latestResultId, setResult);
     return subscription.unsubscribe;
   }, [room?.id, room?.latestResultId]);
+
+  useEffect(() => {
+    setFlippedPodiumCards({});
+  }, [result?.id]);
 
   const currentMember = useMemo(() => {
     if (!room || !memberId) {
@@ -656,6 +661,13 @@ export default function App() {
     setNotice(null);
     setIsMobileMenuOpen(false);
     updateRoomSearchParams();
+  };
+
+  const togglePodiumCard = (placeId: string) => {
+    setFlippedPodiumCards((current) => ({
+      ...current,
+      [placeId]: !current[placeId]
+    }));
   };
 
   return (
@@ -967,13 +979,41 @@ export default function App() {
 
                     <div className="podium-row">
                       {result.rankedRestaurants.slice(0, 3).map((restaurant, index) => (
-                        <article key={restaurant.placeId} className="podium-card">
-                          <span>#{index + 1}</span>
-                          <strong>{restaurant.name}</strong>
-                          <small>
-                            {formatPercent(restaurant.finalScore)} • {formatPrice(restaurant.priceLevel)}
-                          </small>
-                        </article>
+                        <button
+                          key={restaurant.placeId}
+                          type="button"
+                          className={`podium-card ${flippedPodiumCards[restaurant.placeId] ? "podium-card-flipped" : ""}`}
+                          onClick={() => togglePodiumCard(restaurant.placeId)}
+                          aria-pressed={Boolean(flippedPodiumCards[restaurant.placeId])}
+                        >
+                          <div className="podium-card-inner">
+                            <div className="podium-face podium-face-front">
+                              <span>#{index + 1}</span>
+                              <strong>{restaurant.name}</strong>
+                              <small className="podium-address">
+                                {restaurant.address ?? "Address unavailable"}
+                              </small>
+                              <small>
+                                {formatPercent(restaurant.finalScore)} • {formatPrice(restaurant.priceLevel)}
+                              </small>
+                            </div>
+
+                            <div className="podium-face podium-face-back">
+                              <span>Stats</span>
+                              <strong>{formatPercent(restaurant.fairnessScore)} fairness</strong>
+                              <small>
+                                Mean {formatPercent(restaurant.meanScore)} • Min user{" "}
+                                {formatPercent(restaurant.minUserScore)}
+                              </small>
+                              <small>
+                                {restaurant.rating ? `${restaurant.rating.toFixed(1)}★ rating` : "No rating"} •{" "}
+                                {restaurant.userRatingsTotal
+                                  ? `${restaurant.userRatingsTotal.toLocaleString()} reviews`
+                                  : "No review volume"}
+                              </small>
+                            </div>
+                          </div>
+                        </button>
                       ))}
                     </div>
                   </>

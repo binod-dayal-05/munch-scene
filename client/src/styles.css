@@ -295,8 +295,7 @@ select,
 .theme-dark .orbit-member,
 .theme-dark .elimination-feed,
 .theme-dark .reveal-metrics article,
-.theme-dark .signal-grid div,
-.theme-dark .podium-card {
+.theme-dark .signal-grid div {
   background:
     radial-gradient(circle at 12% 8%, rgba(73, 136, 196, 0.2), transparent 42%),
     radial-gradient(circle at 88% 4%, rgba(189, 232, 245, 0.08), transparent 36%),
@@ -609,12 +608,58 @@ button:disabled {
 }
 
 .podium-card {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  perspective: 1200px;
+  min-height: 124px;
+}
+
+.podium-card-inner {
+  position: relative;
+  width: 100%;
+  min-height: 124px;
+  transform-style: preserve-3d;
+  transition: transform 340ms ease;
+}
+
+.podium-card-flipped .podium-card-inner {
+  transform: rotateY(180deg);
+}
+
+.podium-face {
+  position: absolute;
+  inset: 0;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
   padding: 0.7rem;
   display: grid;
   gap: 0.15rem;
+  align-content: start;
+  backface-visibility: hidden;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.podium-face-front {
+  background: var(--surface);
+}
+
+.podium-face-back {
+  transform: rotateY(180deg);
+  background: rgba(223, 238, 249, 0.92);
+}
+
+.podium-card:hover .podium-face-front {
+  background: rgba(189, 232, 245, 0.56);
+  border-color: rgba(28, 77, 141, 0.35);
+}
+
+.podium-card:hover .podium-face-back {
+  background: rgba(176, 224, 245, 0.7);
+  border-color: rgba(28, 77, 141, 0.35);
 }
 
 .podium-card span {
@@ -625,6 +670,28 @@ button:disabled {
 
 .podium-card small {
   color: var(--ink-soft);
+}
+
+.podium-address {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.theme-dark .podium-face-back {
+  background: rgba(22, 34, 50, 0.96);
+}
+
+.theme-dark .podium-card:hover .podium-face-front {
+  background: rgba(36, 56, 84, 0.85);
+  border-color: rgba(189, 232, 245, 0.42);
+}
+
+.theme-dark .podium-card:hover .podium-face-back {
+  background: rgba(46, 69, 101, 0.9);
+  border-color: rgba(189, 232, 245, 0.42);
 }
 
 .live-room {
