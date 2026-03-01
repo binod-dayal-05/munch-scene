@@ -14,6 +14,10 @@ type PreferenceEditorProps = {
 };
 
 const cuisinePlaceholder = "Italian, sushi, tapas";
+const formatDistanceKm = (meters: number): string => {
+  const km = meters / 1000;
+  return Number.isInteger(km) ? String(km) : km.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+};
 
 const priceLabels: Record<UserPreferences["budgetMax"], string> = {
   0: "Free if possible",
@@ -128,17 +132,20 @@ export function PreferenceEditor({
         </label>
 
         <label className="field">
-          <span>Max distance (meters)</span>
+          <span>Max distance (km)</span>
           <input
             disabled={disabled}
             type="number"
-            min={250}
-            step={250}
-            value={preferences.maxDistanceMeters}
+            min={0.25}
+            step={0.25}
+            value={formatDistanceKm(preferences.maxDistanceMeters)}
             onChange={(event) =>
               onChange({
                 ...preferences,
-                maxDistanceMeters: Math.max(250, Number(event.target.value) || 250)
+                maxDistanceMeters: Math.max(
+                  250,
+                  Math.round((Number(event.target.value) || 0.25) * 1000)
+                )
               })
             }
           />
@@ -159,7 +166,10 @@ export function PreferenceEditor({
                 className={`pill ${active ? "pill-active" : ""}`}
                 onClick={() => updateDietary(restriction)}
               >
-                {restriction.replace("_", " ")}
+                {restriction
+                  .replace("_", " ")
+                  .toLowerCase()
+                  .replace(/^\w/, (value) => value.toUpperCase())}
               </button>
             );
           })}

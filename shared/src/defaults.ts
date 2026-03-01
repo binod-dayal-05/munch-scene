@@ -5,7 +5,7 @@ export const defaultUserPreferences = (): UserPreferences => ({
   budgetMax: 2,
   dietaryRestrictions: [],
   cuisinePreferences: [],
-  vibePreference: "casual",
+  vibePreference: "Casual",
   maxDistanceMeters: DEFAULT_SEARCH_RADIUS_METERS
 });
 
@@ -20,4 +20,3 @@ export const createEmptyMember = (
   joinedAt: new Date().toISOString(),
   preferences: defaultUserPreferences()
 });
-

@@ -1,0 +1,75 @@
+.toggle-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toggle {
+  visibility: hidden;
+  position: absolute;
+}
+
+.toggle + label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.32rem 0.5rem;
+  min-width: 3.2rem;
+}
+
+.toggle + label::before {
+  content: "";
+  height: 1.05rem;
+  width: 2rem;
+  border-radius: 1em;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  transition: background-color 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+.toggle + label::after {
+  content: "";
+  height: 0.78rem;
+  width: 0.78rem;
+  border-radius: 1em;
+  background-color: var(--ink);
+  position: absolute;
+  left: 0.7rem;
+  transition: background-color 250ms ease-in-out, transform 250ms ease-in-out;
+}
+
+.toggle:checked + label::after {
+  transform: translateX(0.94rem);
+}
+
+.toggle-moon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.42rem;
+}
+
+.toggle-moon svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: currentColor;
+}
+
+.theme-dark .toggle + label {
+  background: rgba(0, 0, 0, 0.9);
+  color: #f2f5f8;
+}
+
+.theme-dark .toggle + label::before {
+  background-color: rgba(24, 24, 24, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.theme-dark .toggle + label::after {
+  background-color: #ffffff;
+}

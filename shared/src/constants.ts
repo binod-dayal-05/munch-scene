@@ -15,17 +15,17 @@ export const FAIRNESS_WEIGHTS = {
 } as const;
 
 export const DIETARY_RESTRICTION_OPTIONS = [
-  "vegetarian",
-  "vegan",
-  "halal",
-  "kosher",
-  "gluten_free"
+  "Vegetarian",
+  "Vegan",
+  "Halal",
+  "Kosher",
+  "Gluten_free"
 ] as const;
 
 export const VIBE_OPTIONS = [
-  "quiet",
-  "hype",
-  "aesthetic",
-  "casual"
+  "Quiet",
+  "Hype",
+  "Aesthetic",
+  "Casual"
 ] as const;
 
