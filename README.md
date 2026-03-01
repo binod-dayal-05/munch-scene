@@ -15,7 +15,7 @@ Built for a 24-hour hackathon.
 - Budget & distance constraints
 - Fairness-based scoring algorithm
 - Ranked restaurant recommendations
-- Conversational AI explanation (Gemini Flash)
+- Conversational AI explanation (Gemini Flash via OpenRouter)
 - Clean + playful UI
 
 ---
@@ -67,7 +67,7 @@ Backend:
 
 APIs:
 - Google Places API
-- Gemini Flash (AI explanation)
+- OpenRouter with Gemini Flash (AI explanation)
 
 ---
 
@@ -106,10 +106,12 @@ Create a root `.env` from [`.env.example`](/Users/abhi/stormhacks/.env.example):
 
 ```
 GOOGLE_PLACES_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=google/gemini-2.5-flash
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_CLIENT_EMAIL=your_service_account_email
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
 VITE_FIREBASE_API_KEY=your_client_key
 VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
 VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
